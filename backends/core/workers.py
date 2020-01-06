@@ -23,7 +23,7 @@ import json
 import os
 from random import random
 import time
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import uuid
 
 from apiclient.discovery import build
@@ -34,6 +34,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import requests
 from google.cloud import bigquery
 from google.cloud.exceptions import ClientError
+from functools import reduce
 
 
 _KEY_FILE = os.path.join(os.path.dirname(__file__), '..', 'data',
@@ -521,7 +522,7 @@ class GAToBQImporter(BQWorker, GAWorker):
   def _flush(self, forced=False):
     if self._bq_rows:
       if forced or len(self._bq_rows) > 9999:
-        for i in xrange(0, len(self._bq_rows), 10000):
+        for i in range(0, len(self._bq_rows), 10000):
           self._table.insert_data(self._bq_rows[i:i + 10000])
         self._bq_rows = []
 
@@ -586,7 +587,7 @@ class GADataImporter(GAWorker):
       while response is None and tries < 5:
         try:
           status, response = request.next_chunk()
-        except HttpError, e:
+        except HttpError as e:
           if e.resp.status in [404, 500, 502, 503, 504]:
             tries += 1
             delay = 5 * 2 ** (tries + random())
@@ -659,7 +660,7 @@ class GAAudiencesUpdater(BQWorker, GAWorker):
     fields = [f.name for f in self._table.schema]
     for row in self._table.fetch_data():
       try:
-        template_rendered = self._params['template'] % dict(zip(fields, row))
+        template_rendered = self._params['template'] % dict(list(zip(fields, row)))
         audience = json.loads(template_rendered)
       except ValueError as e:
         raise WorkerException(e)
@@ -681,7 +682,7 @@ class GAAudiencesUpdater(BQWorker, GAWorker):
       start_index += max_results
       audiences += response['items']
     self._current_audiences = {}
-    names = self._inferred_audiences.keys()
+    names = list(self._inferred_audiences.keys())
     for audience in audiences:
       if audience['name'] in names:
         self._current_audiences[audience['name']] = audience
@@ -699,7 +700,7 @@ class GAAudiencesUpdater(BQWorker, GAWorker):
     """
     dicts = [(patch, audience)]
     for d1, d2 in dicts:
-      keys = d1 if isinstance(d1, dict) else xrange(len(d1))
+      keys = d1 if isinstance(d1, dict) else list(range(len(d1)))
       for k in keys:
         try:
           d2[k]
@@ -945,7 +946,7 @@ class MeasurementProtocolWorker(Worker):
     flat = False
     while not flat:
       flat = True
-      for k in data.keys():
+      for k in list(data.keys()):
         if data[k] is None:
           del data[k]
         elif isinstance(data[k], list):
@@ -978,9 +979,9 @@ class MeasurementProtocolWorker(Worker):
           param1=value11&param2=value21
     """
     assert isinstance(payloads, list) or isinstance(payloads, tuple)
-    payloads_utf8 = [sorted([(k, unicode(p[k]).encode('utf-8')) for k in p],
+    payloads_utf8 = [sorted([(k, str(p[k]).encode('utf-8')) for k in p],
                             key=lambda t: t[0]) for p in payloads]
-    return '\n'.join([urllib.urlencode(p) for p in payloads_utf8])
+    return '\n'.join([urllib.parse.urlencode(p) for p in payloads_utf8])
 
   def _send_batch_hits(self, batch_payload, user_agent='CRMint / 0.1'):
     """Sends a batch request to the Measurement Protocol endpoint.
@@ -1087,7 +1088,7 @@ class BQToMeasurementProtocolProcessor(BQWorker, MeasurementProtocolWorker):
     fields = [f.name for f in query_schema]
     payload_list = []
     for row in query_data:
-      data = dict(zip(fields, row))
+      data = dict(list(zip(fields, row)))
       payload = self._get_payload_from_data(data)
       payload_list.append(payload)
       if len(payload_list) >= self._params['mp_batch_size']:

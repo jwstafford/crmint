@@ -80,7 +80,7 @@ class StageList(Resource):
   @marshal_with(stage_fields)
   def post(self):
     args = parser.parse_args()
-    print('args: ' + args.__str__())
+    print(('args: ' + args.__str__()))
     stage = Stage()
     stage.assign_attributes(args)
     stage.save()

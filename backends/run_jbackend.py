@@ -15,9 +15,9 @@
 """Create an JBackend instance"""
 from flask.helpers import get_debug_flag
 
-from jbackend.app import create_app
-from jbackend.config import DevConfig, ProdConfig
-from jbackend.extensions import api
+from .jbackend.app import create_app
+from .jbackend.config import DevConfig, ProdConfig
+from .jbackend.extensions import api
 
 CONFIG = DevConfig if get_debug_flag() else ProdConfig
 

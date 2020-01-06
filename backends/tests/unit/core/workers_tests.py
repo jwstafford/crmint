@@ -338,7 +338,7 @@ class TestBQToMeasurementProtocolProcessor(TestBQToMeasurementProtocolMixin, uni
                     {'v': 1},
                     {'v': 'category'},
                     {'v': 'action'},
-                    {'v': u'\u043c\u0435\u0442\u043a\u0430'},
+                    {'v': '\\u043c\\u0435\\u0442\\u043a\\u0430'},
                     {'v': 0.8},
                     {'v': 'User Agent / 1.0'},
                     {'v': 'segment1'},

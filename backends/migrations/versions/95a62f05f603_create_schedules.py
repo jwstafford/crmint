@@ -38,10 +38,10 @@ def upgrade():
     sa.Column('id', mysql.INTEGER(display_width=11), nullable=False),
     sa.Column('cron', mysql.VARCHAR(length=255), nullable=True),
     sa.Column('pipeline_id', mysql.INTEGER(display_width=11), autoincrement=False, nullable=True),
-    sa.ForeignKeyConstraint(['pipeline_id'], [u'pipelines.id'], name=u'schedules_ibfk_1'),
+    sa.ForeignKeyConstraint(['pipeline_id'], ['pipelines.id'], name='schedules_ibfk_1'),
     sa.PrimaryKeyConstraint('id'),
-    mysql_default_charset=u'utf8',
-    mysql_engine=u'InnoDB'
+    mysql_default_charset='utf8',
+    mysql_engine='InnoDB'
     )
     # ### end Alembic commands ###
 

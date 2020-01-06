@@ -45,7 +45,7 @@ class WorkerParams(Resource):
   def get(self, worker_class):
     klass = getattr(workers, worker_class)
     keys = ['name', 'type', 'required', 'default', 'label']
-    return [dict(zip(keys, param)) for param in klass.PARAMS]
+    return [dict(list(zip(keys, param))) for param in klass.PARAMS]
 
 
 api.add_resource(WorkerList, '/workers')

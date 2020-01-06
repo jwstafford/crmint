@@ -13,14 +13,14 @@
 # limitations under the License.
 
 """Create an IBackend instance"""
-import appengine_config
+from . import appengine_config
 
 from flask.helpers import get_debug_flag
 
-import flask_tasks
-from ibackend.app import create_app
-from ibackend.config import DevConfig, ProdConfig
-from ibackend.extensions import api
+from . import flask_tasks
+from .ibackend.app import create_app
+from .ibackend.config import DevConfig, ProdConfig
+from .ibackend.extensions import api
 
 
 CONFIG = DevConfig if get_debug_flag() else ProdConfig

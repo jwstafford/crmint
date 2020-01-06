@@ -84,7 +84,7 @@ class Pipeline(BaseModel):
     return []
 
   def assign_attributes(self, attributes):
-    for key, value in attributes.iteritems():
+    for key, value in list(attributes.items()):
       if key in ['schedules', 'jobs', 'params']:
         continue
       if key == 'run_on_schedule':
@@ -93,7 +93,7 @@ class Pipeline(BaseModel):
       self.__setattr__(key, value)
 
   def save_relations(self, relations):
-    for key, value in relations.iteritems():
+    for key, value in list(relations.items()):
       if key == 'schedules':
         self.assign_schedules(value)
       elif key == 'params':
@@ -258,7 +258,7 @@ class Pipeline(BaseModel):
         jobs.append(job)
         job_mapping[job_data['id']] = job.id
       for job in jobs:
-        job_id = job_mapping.keys()[job_mapping.values().index(job.id)]
+        job_id = list(job_mapping.keys())[list(job_mapping.values()).index(job.id)]
         job_data = next((j for j in data['jobs'] if j['id'] == job_id), None)
         job.assign_hash_start_conditions(job_data['hash_start_conditions'],
                                          job_mapping)
@@ -514,13 +514,13 @@ class Job(BaseModel):
       self.pipeline.job_finished()
 
   def assign_attributes(self, attributes):
-    for key, value in attributes.iteritems():
+    for key, value in list(attributes.items()):
       if key in ['params', 'start_conditions', 'id', 'hash_start_conditions']:
         continue
       self.__setattr__(key, value)
 
   def save_relations(self, relations):
-    for key, value in relations.iteritems():
+    for key, value in list(relations.items()):
       if key == 'params':
         self.assign_params(value)
       elif key == 'start_conditions':
@@ -722,7 +722,7 @@ class Stage(BaseModel):
   sid = Column(String(255))
 
   def assign_attributes(self, attributes):
-    for key, value in attributes.iteritems():
+    for key, value in list(attributes.items()):
       self.__setattr__(key, value)
 
 

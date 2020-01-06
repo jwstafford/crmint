@@ -67,7 +67,7 @@ def main(sdk_path, test_path, test_pattern):
   # changes to configuration there are available to all tests (e.g.
   # sys.path modifications, namespaces, etc.)
   try:
-    import appengine_config
+    from . import appengine_config
     (appengine_config)
   except ImportError:
     print('Note: unable to import appengine_config.')

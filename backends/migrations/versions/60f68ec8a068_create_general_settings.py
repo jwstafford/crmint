@@ -39,8 +39,8 @@ def upgrade():
                     sa.Column('created_at', mysql.DATETIME(), nullable=False),
                     sa.Column('updated_at', mysql.DATETIME(), nullable=False),
                     sa.PrimaryKeyConstraint('id'),
-                    mysql_default_charset=u'utf8',
-                    mysql_engine=u'InnoDB'
+                    mysql_default_charset='utf8',
+                    mysql_engine='InnoDB'
                     )
     # ### end Alembic commands ###
 

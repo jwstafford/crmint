@@ -78,7 +78,7 @@ def _bigquery(table_name, field_name):
       raise ValueError('BigQuery table `%s` not found' % table_name)
     field_names = [f.name for f in table.schema]
     filed_values = list(table.fetch_data(max_results=1))[0]
-    _SESSION['bq_cache'][table_name] = dict(zip(field_names, filed_values))
+    _SESSION['bq_cache'][table_name] = dict(list(zip(field_names, filed_values)))
 
   if table_name not in _SESSION['bq_cache']:
     _fetch_bq_table_data(table_name)

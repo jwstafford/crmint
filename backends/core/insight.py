@@ -18,7 +18,6 @@ Insight module
 Anonymously report usage.
 """
 
-from __future__ import print_function
 
 import json
 import math
@@ -126,8 +125,8 @@ class GAProvider(object):
   def track(self, *args):
     if self.opt_out is True:
       return
-    only_args = filter(lambda x: not x.startswith('-'), args)
-    path = '/' + '/'.join(map(lambda x: x.replace(' ', '-'), only_args))
+    only_args = [x for x in args if not x.startswith('-')]
+    path = '/' + '/'.join([x.replace(' ', '-') for x in only_args])
     payload = {'type': 'pageview', 'path': path}
     self._send(payload)
 
