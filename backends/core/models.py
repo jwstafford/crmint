@@ -16,7 +16,6 @@ from datetime import datetime
 import json
 import re
 import uuid
-from google.appengine.api import taskqueue
 from simpleeval import simple_eval
 from simpleeval import InvalidExpression
 from sqlalchemy import Column
@@ -30,7 +29,9 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import load_only
 from core import inline
 from core.database import BaseModel
-from core.mailers import NotificationMailer
+# from core.mailers import NotificationMailer
+from core.mailers import StubMailer
+from core.tasks import TaskQueue
 
 
 def _parse_num(s):
@@ -241,7 +242,8 @@ class Pipeline(BaseModel):
         status = Pipeline.STATUS.FAILED
         break
     self.set_status(status)
-    NotificationMailer().finished_pipeline(self)
+    # NotificationMailer().finished_pipeline(self)
+    StubMailer().finished_pipeline(self)
 
   def import_data(self, data):
     self.assign_params(data['params'])
@@ -313,6 +315,7 @@ class Job(BaseModel):
     self.name = name
     self.worker_class = worker_class
     self.pipeline_id = pipeline_id
+    self.task_queue = TaskQueue()
 
   def destroy(self):
     sc_ids = [sc.id for sc in self.start_conditions]
@@ -356,8 +359,8 @@ class Job(BaseModel):
     task_namespace = self._get_task_namespace()
     enqueued_tasks = TaskEnqueued.where(task_namespace=task_namespace)
     if enqueued_tasks:
-      tasks = [taskqueue.Task(name=t.task_name) for t in enqueued_tasks]
-      taskqueue.Queue().delete_tasks(tasks)
+      task_names = [t.task_name for t in enqueued_tasks]
+      self.task_queue.delete(task_names)
       TaskEnqueued.where(task_namespace=task_namespace).delete()
 
   def _enqueued_task_count(self):
@@ -431,17 +434,12 @@ class Job(BaseModel):
     escaped_task_name = re.sub(r'[^-_0-9a-zA-Z]', '-', task_name)
     unique_task_name = '%s_%s' % (escaped_task_name, str(uuid.uuid4()))
     task_params = {
-        'job_id': self.id,
-        'worker_class': worker_class,
-        'worker_params': json.dumps(worker_params),
-        'task_name': unique_task_name
+      'job_id': self.id,
+      'worker_class': worker_class,
+      'worker_params': worker_params,
+      'task_name': unique_task_name
     }
-    task = taskqueue.add(
-        target='job-service',
-        name=unique_task_name,
-        url='/task',
-        params=task_params,
-        countdown=delay)
+    task = self.task_queue.add(unique_task_name, task_params, delay)
 
     # Keep track of the running task name.
     self._add_task_with_name(unique_task_name)

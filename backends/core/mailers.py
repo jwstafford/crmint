@@ -14,7 +14,7 @@
 
 """Mailers"""
 
-from google.appengine.api import mail
+# from google.appengine.api import mail
 
 from core.app_data import APP_DATA
 
@@ -30,17 +30,23 @@ class AppMailer(object):
     return recipients
 
 
-class NotificationMailer(AppMailer):
-  SENDER = "CRMintApp %s Notification <%s>" % (
-      APP_DATA['app_title'],
-      APP_DATA['notification_sender_email']
-  )
+# class NotificationMailer(AppMailer):
+#   SENDER = "CRMintApp %s Notification <%s>" % (
+#       APP_DATA['app_title'],
+#       APP_DATA['notification_sender_email']
+#   )
+#
+#   def finished_pipeline(self, pipeline):
+#     recipients = self.recipients(pipeline.recipients)
+#     if recipients:
+#       subject = "Pipeline %s %s." % (pipeline.name, pipeline.status)
+#       mail.send_mail(sender=self.SENDER,
+#                      to=recipients,
+#                      subject=subject,
+#                      body=subject)
+
+
+class StubMailer(AppMailer):
 
   def finished_pipeline(self, pipeline):
-    recipients = self.recipients(pipeline.recipients)
-    if recipients:
-      subject = "Pipeline %s %s." % (pipeline.name, pipeline.status)
-      mail.send_mail(sender=self.SENDER,
-                     to=recipients,
-                     subject=subject,
-                     body=subject)
+    pass

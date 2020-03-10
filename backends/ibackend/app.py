@@ -17,23 +17,25 @@
 import os.path
 
 from flask import Flask
+from flask.helpers import get_debug_flag
 
 from core.database import init_engine
 from core.extensions import db, cors, migrate
-from ibackend.config import ProdConfig
-from ibackend.extensions import set_global_api_blueprint
+from ibackend.config import DevConfig, ProdConfig
+from ibackend.extensions import api, set_global_api_blueprint
 
 
-def create_app(api_blueprint, config_object=ProdConfig):
+def create_app():
   """An application factory."""
   app = Flask(__name__.split('.')[1], instance_relative_config=True)
+  config_object = DevConfig if get_debug_flag() else ProdConfig
   app.config.from_object(config_object)
   app.config.from_pyfile(
       os.path.join(os.path.dirname(__file__), '..', 'instance', 'config.py'))
   # NB: set the global api blueprint before registering all the blueprints
-  set_global_api_blueprint(api_blueprint)
+  set_global_api_blueprint(api)
   register_extensions(app)
-  register_api_blueprints(api_blueprint)
+  register_api_blueprints(api)
   register_blueprints(app)
   return app
 

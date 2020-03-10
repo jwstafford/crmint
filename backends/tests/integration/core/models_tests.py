@@ -14,6 +14,7 @@
 
 from google.appengine.api import taskqueue
 from google.appengine.ext import testbed
+from google.cloud import tasks
 import mock
 
 from core import models

@@ -15,9 +15,9 @@
 """Module with CRMintApp worker classes."""
 
 
-from datetime import datetime
-from datetime import timedelta
-from fnmatch import fnmatch
+# from datetime import datetime
+# from datetime import timedelta
+# from fnmatch import fnmatch
 from functools import wraps
 import json
 import os
@@ -26,11 +26,11 @@ import time
 import urllib.request, urllib.parse, urllib.error
 import uuid
 
-from apiclient.discovery import build
+# from apiclient.discovery import build
 from apiclient.errors import HttpError
 from apiclient.http import MediaIoBaseUpload
-import cloudstorage as gcs
-from oauth2client.service_account import ServiceAccountCredentials
+# import cloudstorage as gcs
+# from oauth2client.service_account import ServiceAccountCredentials
 import requests
 from google.cloud import bigquery
 from google.cloud.exceptions import ClientError
@@ -259,140 +259,140 @@ class BQQueryLauncher(BQWorker):
     self._begin_and_wait(job)
 
 
-class StorageWorker(Worker):
-  """Abstract worker class for Cloud Storage workers."""
-
-  def _get_matching_stats(self, patterned_uris):
-    stats = []
-    patterns = {}
-    for patterned_uri in patterned_uris:
-      patterned_uri_split = patterned_uri.split('/')
-      bucket = '/'.join(patterned_uri_split[1:3])
-      pattern = '/'.join(patterned_uri_split[1:])
-      try:
-        if pattern not in patterns[bucket]:
-          patterns[bucket].append(pattern)
-      except KeyError:
-        patterns[bucket] = [pattern]
-    for bucket in patterns:
-      for stat in gcs.listbucket(bucket):
-        if not stat.is_dir:
-          for pattern in patterns[bucket]:
-            if fnmatch(stat.filename, pattern):
-              stats.append(stat)
-              break
-    return stats
-
-
-class StorageCleaner(StorageWorker):
-  """Worker to delete stale files in Cloud Storage."""
-
-  PARAMS = [
-      ('file_uris', 'string_list', True, '',
-       ('List of file URIs and URI patterns (e.g. gs://bucket/data.csv or '
-        'gs://bucket/data_*.csv)')),
-      ('expiration_days', 'number', True, 30,
-       'Days to keep files since last modification'),
-  ]
-
-  def _execute(self):
-    delta = timedelta(self._params['expiration_days'])
-    expiration_datetime = datetime.now() - delta
-    expiration_timestamp = time.mktime(expiration_datetime.timetuple())
-    stats = self._get_matching_stats(self._params['file_uris'])
-    for stat in stats:
-      if stat.st_ctime < expiration_timestamp:
-        gcs.delete(stat.filename)
-        self.log_info('gs:/%s file deleted.', stat.filename)
+# class StorageWorker(Worker):
+#   """Abstract worker class for Cloud Storage workers."""
+#
+#   def _get_matching_stats(self, patterned_uris):
+#     stats = []
+#     patterns = {}
+#     for patterned_uri in patterned_uris:
+#       patterned_uri_split = patterned_uri.split('/')
+#       bucket = '/'.join(patterned_uri_split[1:3])
+#       pattern = '/'.join(patterned_uri_split[1:])
+#       try:
+#         if pattern not in patterns[bucket]:
+#           patterns[bucket].append(pattern)
+#       except KeyError:
+#         patterns[bucket] = [pattern]
+#     for bucket in patterns:
+#       for stat in gcs.listbucket(bucket):
+#         if not stat.is_dir:
+#           for pattern in patterns[bucket]:
+#             if fnmatch(stat.filename, pattern):
+#               stats.append(stat)
+#               break
+#     return stats
 
 
-class StorageChecker(StorageWorker):
-  """Worker to check if files matching the patterns exist in Cloud Storage."""
-
-  PARAMS = [
-      ('file_uris', 'string_list', True, '',
-       ('List of file URIs and URI patterns (e.g. gs://bucket/data.csv or '
-        'gs://bucket/data_*.csv)')),
-      ('min_size', 'number', False, '',
-       'Least total size of matching files in bytes required for success'),
-  ]
-
-  def _execute(self):
-    try:
-      min_size = int(self._params['min_size'])
-    except TypeError:
-      min_size = 0
-    stats = self._get_matching_stats(self._params['file_uris'])
-    if not stats:
-      raise WorkerException('Files matching the patterns were not found')
-    size = reduce(lambda total, stat: total + stat.st_size, stats, 0)
-    if size < min_size:
-      raise WorkerException( 'Files matching the patterns are too small')
+# class StorageCleaner(StorageWorker):
+#   """Worker to delete stale files in Cloud Storage."""
+#
+#   PARAMS = [
+#       ('file_uris', 'string_list', True, '',
+#        ('List of file URIs and URI patterns (e.g. gs://bucket/data.csv or '
+#         'gs://bucket/data_*.csv)')),
+#       ('expiration_days', 'number', True, 30,
+#        'Days to keep files since last modification'),
+#   ]
+#
+#   def _execute(self):
+#     delta = timedelta(self._params['expiration_days'])
+#     expiration_datetime = datetime.now() - delta
+#     expiration_timestamp = time.mktime(expiration_datetime.timetuple())
+#     stats = self._get_matching_stats(self._params['file_uris'])
+#     for stat in stats:
+#       if stat.st_ctime < expiration_timestamp:
+#         gcs.delete(stat.filename)
+#         self.log_info('gs:/%s file deleted.', stat.filename)
 
 
+# class StorageChecker(StorageWorker):
+#   """Worker to check if files matching the patterns exist in Cloud Storage."""
+#
+#   PARAMS = [
+#       ('file_uris', 'string_list', True, '',
+#        ('List of file URIs and URI patterns (e.g. gs://bucket/data.csv or '
+#         'gs://bucket/data_*.csv)')),
+#       ('min_size', 'number', False, '',
+#        'Least total size of matching files in bytes required for success'),
+#   ]
+#
+#   def _execute(self):
+#     try:
+#       min_size = int(self._params['min_size'])
+#     except TypeError:
+#       min_size = 0
+#     stats = self._get_matching_stats(self._params['file_uris'])
+#     if not stats:
+#       raise WorkerException('Files matching the patterns were not found')
+#     size = reduce(lambda total, stat: total + stat.st_size, stats, 0)
+#     if size < min_size:
+#       raise WorkerException( 'Files matching the patterns are too small')
 
-class StorageToBQImporter(StorageWorker, BQWorker):
-  """Worker to import a CSV file into a BigQuery table."""
 
-  PARAMS = [
-      ('source_uris', 'string_list', '', True,
-       'Source CSV or JSON files URIs (e.g. gs://bucket/data.csv)'),
-      ('bq_project_id', 'string', False, '', 'BQ Project ID'),
-      ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
-      ('bq_table_id', 'string', True, '', 'BQ Table ID'),
-      ('overwrite', 'boolean', True, False, 'Overwrite table'),
-      ('dont_create', 'boolean', True, False,
-       'Don\'t create table if doesn\'t exist'),
-      ('autodetect', 'boolean', True, False,
-       'Autodetect schema and other parameters'),
-      ('rows_to_skip', 'number', False, 0, 'Header rows to skip'),
-      ('errors_to_allow', 'number', False, 0, 'Number of errors allowed'),
-      ('import_json', 'boolean', False, False, 'Source is in JSON format'),
-  ]
 
-  def _get_source_uris(self):
-    stats = self._get_matching_stats(self._params['source_uris'])
-    return ['gs:/%s' % s.filename for s in stats]
-
-  def _execute(self):
-    self._bq_setup()
-    source_uris = self._get_source_uris()
-    job = self._client.load_table_from_storage(
-        self._job_name, self._table, *source_uris)
-    if self._params['import_json']:
-      job.source_format = 'NEWLINE_DELIMITED_JSON'
-    else:
-      try:
-        job.skip_leading_rows = self._params['rows_to_skip']
-      except KeyError:
-        job.skip_leading_rows = 0
-    job.autodetect = self._params['autodetect']
-    if job.autodetect:
-      # Ugly patch to make autodetection work. See https://goo.gl/shWLKf
-      # pylint: disable=protected-access
-      def _build_resource_with_autodetect():
-        resource = bigquery.job.LoadTableFromStorageJob._build_resource(job)
-        resource['configuration']['load']['autodetect'] = True
-        return resource
-      job._build_resource = _build_resource_with_autodetect
-      # pylint: enable=protected-access
-    else:
-      job.allow_jagged_rows = True
-      job.allow_quoted_newlines = True
-      job.ignore_unknown_values = True
-    try:
-      job.max_bad_records = self._params['errors_to_allow']
-    except KeyError:
-      job.max_bad_records = 0
-    if self._params['overwrite']:
-      job.write_disposition = 'WRITE_TRUNCATE'
-    else:
-      job.write_disposition = 'WRITE_APPEND'
-    if self._params['dont_create']:
-      job.create_disposition = 'CREATE_NEVER'
-    else:
-      job.create_disposition = 'CREATE_IF_NEEDED'
-    self._begin_and_wait(job)
+# class StorageToBQImporter(StorageWorker, BQWorker):
+#   """Worker to import a CSV file into a BigQuery table."""
+#
+#   PARAMS = [
+#       ('source_uris', 'string_list', '', True,
+#        'Source CSV or JSON files URIs (e.g. gs://bucket/data.csv)'),
+#       ('bq_project_id', 'string', False, '', 'BQ Project ID'),
+#       ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
+#       ('bq_table_id', 'string', True, '', 'BQ Table ID'),
+#       ('overwrite', 'boolean', True, False, 'Overwrite table'),
+#       ('dont_create', 'boolean', True, False,
+#        'Don\'t create table if doesn\'t exist'),
+#       ('autodetect', 'boolean', True, False,
+#        'Autodetect schema and other parameters'),
+#       ('rows_to_skip', 'number', False, 0, 'Header rows to skip'),
+#       ('errors_to_allow', 'number', False, 0, 'Number of errors allowed'),
+#       ('import_json', 'boolean', False, False, 'Source is in JSON format'),
+#   ]
+#
+#   def _get_source_uris(self):
+#     stats = self._get_matching_stats(self._params['source_uris'])
+#     return ['gs:/%s' % s.filename for s in stats]
+#
+#   def _execute(self):
+#     self._bq_setup()
+#     source_uris = self._get_source_uris()
+#     job = self._client.load_table_from_storage(
+#         self._job_name, self._table, *source_uris)
+#     if self._params['import_json']:
+#       job.source_format = 'NEWLINE_DELIMITED_JSON'
+#     else:
+#       try:
+#         job.skip_leading_rows = self._params['rows_to_skip']
+#       except KeyError:
+#         job.skip_leading_rows = 0
+#     job.autodetect = self._params['autodetect']
+#     if job.autodetect:
+#       # Ugly patch to make autodetection work. See https://goo.gl/shWLKf
+#       # pylint: disable=protected-access
+#       def _build_resource_with_autodetect():
+#         resource = bigquery.job.LoadTableFromStorageJob._build_resource(job)
+#         resource['configuration']['load']['autodetect'] = True
+#         return resource
+#       job._build_resource = _build_resource_with_autodetect
+#       # pylint: enable=protected-access
+#     else:
+#       job.allow_jagged_rows = True
+#       job.allow_quoted_newlines = True
+#       job.ignore_unknown_values = True
+#     try:
+#       job.max_bad_records = self._params['errors_to_allow']
+#     except KeyError:
+#       job.max_bad_records = 0
+#     if self._params['overwrite']:
+#       job.write_disposition = 'WRITE_TRUNCATE'
+#     else:
+#       job.write_disposition = 'WRITE_APPEND'
+#     if self._params['dont_create']:
+#       job.create_disposition = 'CREATE_NEVER'
+#     else:
+#       job.create_disposition = 'CREATE_IF_NEEDED'
+#     self._begin_and_wait(job)
 
 
 class BQToStorageExporter(BQWorker):
@@ -418,520 +418,520 @@ class BQToStorageExporter(BQWorker):
     self._begin_and_wait(job)
 
 
-class GAWorker(Worker):
-  """Abstract class with GA-specific methods."""
-
-  def _ga_setup(self, v='v4'):
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(_KEY_FILE)
-    service = 'analyticsreporting' if v == 'v4' else 'analytics'
-    self._ga_client = build(service, v, credentials=credentials)
-
-  def _parse_accountid_from_propertyid(self):
-    return self._params['property_id'].split('-')[1]
-
-
-class GAToBQImporter(BQWorker, GAWorker):
-  """Worker to load data into BQ from GA using Core Reporting API."""
-
-  PARAMS = [
-      ('view_ids', 'string_list', True, '', 'View IDs (e.g. 12345)'),
-      ('start_date', 'string', True, '', 'Start date (e.g. 2015-12-31)'),
-      ('end_date', 'string', True, '', 'End date (e.g. 2016-12-31)'),
-      ('day_by_day', 'boolean', True, False, 'Fetch data day by day'),
-      ('metrics', 'string_list', True, '', 'Metrics (e.g. ga:users)'),
-      ('dimensions', 'string_list', False, '', 'Dimensions (e.g. ga:source)'),
-      ('filters', 'string', False, '',
-       'Filters (e.g. ga:deviceCategory==mobile)'),
-      ('include_empty_rows', 'boolean', True, False, 'Include empty rows'),
-      ('bq_project_id', 'string', False, '', 'BQ Project ID'),
-      ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
-      ('bq_table_id', 'string', True, '', 'BQ Table ID'),
-  ]
-
-  def _compose_report(self):
-    dimensions = [{'name': d} for d in self._params['dimensions']]
-    metrics = [{'expression': m} for m in self._params['metrics']]
-    self._request = {
-        'viewId': None,
-        'dateRanges': None,
-        'dimensions': dimensions,
-        'metrics': metrics,
-        'filtersExpression': self._params['filters'],
-        'hideTotals': True,
-        'hideValueRanges': True,
-        'includeEmptyRows': self._params['include_empty_rows'],
-        'samplingLevel': 'LARGE',
-        'pageSize': 10000,
-    }
-
-  def _get_report(self, view_id, start_date, end_date):
-    # TODO(dulacp): refactor this method, too complex branching logic
-
-    log_str = 'View ID %s from %s till %s' % (view_id, start_date, end_date)
-    self.log_info('Fetch for %s started', log_str)
-    rows_fetched = 0
-    self._request['view_id'] = view_id
-    self._request['dateRanges'] = [{
-        'startDate': start_date,
-        'endDate': end_date,
-    }]
-    body = {'reportRequests': [self._request]}
-    while True:
-      request = self._ga_client.reports().batchGet(body=body)
-      response = self.retry(request.execute)()
-      report = response['reports'][0]
-      dimensions = [d.replace(':', '_') for d in
-                    report['columnHeader']['dimensions']]
-      metrics = [m['name'].replace(':', '_') for m in
-                 report['columnHeader']['metricHeader']['metricHeaderEntries']]
-      ga_row = {
-          'view_id': view_id,
-          'start_date': start_date,
-          'end_date': end_date,
-      }
-      try:
-        for row in report['data']['rows']:
-          for dimension, value in zip(dimensions, row['dimensions']):
-            ga_row[dimension] = value
-          for metric, value in zip(metrics, row['metrics'][0]['values']):
-            ga_row[metric] = value
-          bq_row = []
-          for field in self._table.schema:
-            try:
-              bq_row.append(ga_row[field.name])
-            except KeyError:
-              bq_row.append(None)
-          self._bq_rows.append(tuple(bq_row))
-        self._flush()
-        rows_fetched += len(report['data']['rows'])
-        try:
-          self._request['pageToken'] = report['nextPageToken']
-        except KeyError:
-          try:
-            del self._request['pageToken']
-          except KeyError:
-            pass
-          break
-      except KeyError:
-        break
-    if rows_fetched:
-      self.log_info('%i rows of data fetched for %s', rows_fetched, log_str)
-    else:
-      self.log_warn('No rows of data fetched for %s', log_str)
-
-  def _flush(self, forced=False):
-    if self._bq_rows:
-      if forced or len(self._bq_rows) > 9999:
-        for i in range(0, len(self._bq_rows), 10000):
-          self._table.insert_data(self._bq_rows[i:i + 10000])
-        self._bq_rows = []
-
-  def _execute(self):
-    self._bq_setup()
-    self._table.reload()
-    self._ga_setup()
-    self._compose_report()
-    self._bq_rows = []
-    if self._params['day_by_day']:
-      start_date = datetime.strptime(
-          self._params['start_date'], '%Y-%m-%d').date()
-      end_date = datetime.strptime(
-          self._params['end_date'], '%Y-%m-%d').date()
-      date_str = start_date.strftime('%Y-%m-%d')
-      for view_id in self._params['view_ids']:
-        self._get_report(view_id, date_str, date_str)
-      self._flush(forced=True)
-      if start_date != end_date:
-        start_date += timedelta(1)
-        params = self._params.copy()
-        params['start_date'] = start_date.strftime('%Y-%m-%d')
-        self._enqueue(self.__class__.__name__, params)
-    else:
-      for view_id in self._params['view_ids']:
-        self._get_report(
-            view_id, self._params['start_date'], self._params['end_date'])
-      self._flush(forced=True)
+# class GAWorker(Worker):
+#   """Abstract class with GA-specific methods."""
+#
+#   def _ga_setup(self, v='v4'):
+#     credentials = ServiceAccountCredentials.from_json_keyfile_name(_KEY_FILE)
+#     service = 'analyticsreporting' if v == 'v4' else 'analytics'
+#     self._ga_client = build(service, v, credentials=credentials)
+#
+#   def _parse_accountid_from_propertyid(self):
+#     return self._params['property_id'].split('-')[1]
 
 
-class GADataImporter(GAWorker):
-  """Imports CSV data from Cloud Storage to GA using Data Import."""
-
-  PARAMS = [
-      ('csv_uri', 'string', True, '',
-       'CSV data file URI (e.g. gs://bucket/data.csv)'),
-      ('property_id', 'string', True, '',
-       'GA Property Tracking ID (e.g. UA-12345-3)'),
-      ('dataset_id', 'string', True, '',
-       'GA Dataset ID (e.g. sLj2CuBTDFy6CedBJw)'),
-      ('max_uploads', 'number', False, '',
-       'Maximum uploads to keep in GA Dataset (leave empty to keep all)'),
-      ('delete_before', 'boolean', True, False,
-       'Delete older uploads before upload'),
-      ('account_id', 'string', False, '', 'GA Account ID'),
-  ]
-
-  _BUFFER_SIZE = 256 * 1024
-
-  def _upload(self):
-    with gcs.open(self._file_name, read_buffer_size=self._BUFFER_SIZE) as f:
-      media = MediaIoBaseUpload(f, mimetype='application/octet-stream',
-                                chunksize=self._BUFFER_SIZE, resumable=True)
-      request = self._ga_client.management().uploads().uploadData(
-          accountId=self._account_id,
-          webPropertyId=self._params['property_id'],
-          customDataSourceId=self._params['dataset_id'],
-          media_body=media)
-      response = None
-      tries = 0
-      milestone = 0
-      while response is None and tries < 5:
-        try:
-          status, response = request.next_chunk()
-        except HttpError as e:
-          if e.resp.status in [404, 500, 502, 503, 504]:
-            tries += 1
-            delay = 5 * 2 ** (tries + random())
-            self.log_warn('%s, Retrying in %.1f seconds...', e, delay)
-            time.sleep(delay)
-          else:
-            raise WorkerException(e)
-        else:
-          tries = 0
-        if status:
-          progress = int(status.progress() * 100)
-          if progress >= milestone:
-            self.log_info('Uploaded %d%%.', int(status.progress() * 100))
-            milestone += 20
-      self.log_info('Upload Complete.')
-
-  def _delete_older(self, uploads_to_keep):
-    request = self._ga_client.management().uploads().list(
-        accountId=self._account_id, webPropertyId=self._params['property_id'],
-        customDataSourceId=self._params['dataset_id'])
-    response = self.retry(request.execute)()
-    uploads = sorted(response.get('items', []), key=lambda u: u['uploadTime'])
-    if uploads_to_keep:
-      ids_to_delete = [u['id'] for u in uploads[:-uploads_to_keep]]
-    else:
-      ids_to_delete = [u['id'] for u in uploads]
-    if ids_to_delete:
-      request = self._ga_client.management().uploads().deleteUploadData(
-          accountId=self._account_id,
-          webPropertyId=self._params['property_id'],
-          customDataSourceId=self._params['dataset_id'],
-          body={
-              'customDataImportUids': ids_to_delete})
-      self.retry(request.execute)()
-      self.log_info('%i older upload(s) deleted.', len(ids_to_delete))
-
-  def _execute(self):
-    self._ga_setup('v3')
-    if self._params['account_id']:
-      self._account_id = self._params['account_id']
-    else:
-      self._account_id = self._parse_accountid_from_propertyid()
-    self._file_name = self._params['csv_uri'].replace('gs:/', '')
-    if self._params['max_uploads'] > 0 and self._params['delete_before']:
-      self._delete_older(self._params['max_uploads'] - 1)
-    self._upload()
-    if self._params['max_uploads'] > 0 and not self._params['delete_before']:
-      self._delete_older(self._params['max_uploads'])
-
-
-class GAAudiencesUpdater(BQWorker, GAWorker):
-  """Worker to update GA audiences using values from a BQ table.
-
-  See: https://developers.google.com/analytics/devguides/config/mgmt/v3/mgmtReference/management/remarketingAudience#resource
-  for more details on the required GA Audience JSON template format.
-  """
-
-  PARAMS = [
-      ('property_id', 'string', True, '',
-       'GA Property Tracking ID (e.g. UA-12345-3)'),
-      ('bq_project_id', 'string', False, '', 'BQ Project ID'),
-      ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
-      ('bq_table_id', 'string', True, '', 'BQ Table ID'),
-      ('template', 'text', True, '', 'GA audience JSON template'),
-      ('account_id', 'string', False, '', 'GA Account ID'),
-  ]
-
-  def _infer_audiences(self):
-    self._inferred_audiences = {}
-    fields = [f.name for f in self._table.schema]
-    for row in self._table.fetch_data():
-      try:
-        template_rendered = self._params['template'] % dict(list(zip(fields, row)))
-        audience = json.loads(template_rendered)
-      except ValueError as e:
-        raise WorkerException(e)
-      self._inferred_audiences[audience['name']] = audience
-
-  def _get_audiences(self):
-    audiences = []
-    start_index = 1
-    max_results = 100
-    total_results = 100
-    while start_index <= total_results:
-      request = self._ga_client.management().remarketingAudience().list(
-          accountId=self._account_id,
-          webPropertyId=self._params['property_id'],
-          start_index=start_index,
-          max_results=max_results)
-      response = self.retry(request.execute)()
-      total_results = response['totalResults']
-      start_index += max_results
-      audiences += response['items']
-    self._current_audiences = {}
-    names = list(self._inferred_audiences.keys())
-    for audience in audiences:
-      if audience['name'] in names:
-        self._current_audiences[audience['name']] = audience
-
-  def _equal(self, patch, audience):
-    """Checks whether applying a patch would not change an audience.
-
-    Args:
-        patch: An object that is going to be used as a patch to update the
-            audience.
-        audience: An object representing audience to be patched.
-
-    Returns:
-       True if applying the patch won't change the audience, False otherwise.
-    """
-    dicts = [(patch, audience)]
-    for d1, d2 in dicts:
-      keys = d1 if isinstance(d1, dict) else list(range(len(d1)))
-      for k in keys:
-        try:
-          d2[k]
-        except (IndexError, KeyError):
-          return False
-        if isinstance(d1[k], dict):
-          if isinstance(d2[k], dict):
-            dicts.append((d1[k], d2[k]))
-          else:
-            return False
-        elif isinstance(d1[k], list):
-          if isinstance(d2[k], list) and len(d1[k]) == len(d2[k]):
-            dicts.append((d1[k], d2[k]))
-          else:
-            return False
-        elif d1[k] != d2[k]:
-          return False
-    return True
-
-  def _get_diff(self):
-    """Composes lists of audiences to be created and updated in GA."""
-    self._audiences_to_insert = []
-    self._audiences_to_patch = {}
-    for name in self._inferred_audiences:
-      inferred_audience = self._inferred_audiences[name]
-      if name in self._current_audiences:
-        current_audience = self._current_audiences[name]
-        if not self._equal(inferred_audience, current_audience):
-          self._audiences_to_patch[current_audience['id']] = inferred_audience
-      else:
-        self._audiences_to_insert.append(inferred_audience)
-
-  def _update_ga_audiences(self):
-    """Updates and/or creates audiences in GA."""
-    for audience in self._audiences_to_insert:
-      request = self._ga_client.management().remarketingAudience().insert(
-          accountId=self._account_id,
-          webPropertyId=self._params['property_id'],
-          body=audience)
-      self.retry(request.execute)()
-    for audience_id in self._audiences_to_patch:
-      audience = self._audiences_to_patch[audience_id]
-      request = self._ga_client.management().remarketingAudience().patch(
-          accountId=self._account_id,
-          webPropertyId=self._params['property_id'],
-          remarketingAudienceId=audience_id,
-          body=audience)
-      self.retry(request.execute)()
-
-  def _execute(self):
-    if self._params['account_id']:
-      self._account_id = self._params['account_id']
-    else:
-      self._account_id = self._parse_accountid_from_propertyid()
-    self._bq_setup()
-    self._table.reload()
-    self._ga_setup('v3')
-    self._infer_audiences()
-    self._get_audiences()
-    self._get_diff()
-    self._update_ga_audiences()
+# class GAToBQImporter(BQWorker, GAWorker):
+#   """Worker to load data into BQ from GA using Core Reporting API."""
+#
+#   PARAMS = [
+#       ('view_ids', 'string_list', True, '', 'View IDs (e.g. 12345)'),
+#       ('start_date', 'string', True, '', 'Start date (e.g. 2015-12-31)'),
+#       ('end_date', 'string', True, '', 'End date (e.g. 2016-12-31)'),
+#       ('day_by_day', 'boolean', True, False, 'Fetch data day by day'),
+#       ('metrics', 'string_list', True, '', 'Metrics (e.g. ga:users)'),
+#       ('dimensions', 'string_list', False, '', 'Dimensions (e.g. ga:source)'),
+#       ('filters', 'string', False, '',
+#        'Filters (e.g. ga:deviceCategory==mobile)'),
+#       ('include_empty_rows', 'boolean', True, False, 'Include empty rows'),
+#       ('bq_project_id', 'string', False, '', 'BQ Project ID'),
+#       ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
+#       ('bq_table_id', 'string', True, '', 'BQ Table ID'),
+#   ]
+#
+#   def _compose_report(self):
+#     dimensions = [{'name': d} for d in self._params['dimensions']]
+#     metrics = [{'expression': m} for m in self._params['metrics']]
+#     self._request = {
+#         'viewId': None,
+#         'dateRanges': None,
+#         'dimensions': dimensions,
+#         'metrics': metrics,
+#         'filtersExpression': self._params['filters'],
+#         'hideTotals': True,
+#         'hideValueRanges': True,
+#         'includeEmptyRows': self._params['include_empty_rows'],
+#         'samplingLevel': 'LARGE',
+#         'pageSize': 10000,
+#     }
+#
+#   def _get_report(self, view_id, start_date, end_date):
+#     # TODO(dulacp): refactor this method, too complex branching logic
+#
+#     log_str = 'View ID %s from %s till %s' % (view_id, start_date, end_date)
+#     self.log_info('Fetch for %s started', log_str)
+#     rows_fetched = 0
+#     self._request['view_id'] = view_id
+#     self._request['dateRanges'] = [{
+#         'startDate': start_date,
+#         'endDate': end_date,
+#     }]
+#     body = {'reportRequests': [self._request]}
+#     while True:
+#       request = self._ga_client.reports().batchGet(body=body)
+#       response = self.retry(request.execute)()
+#       report = response['reports'][0]
+#       dimensions = [d.replace(':', '_') for d in
+#                     report['columnHeader']['dimensions']]
+#       metrics = [m['name'].replace(':', '_') for m in
+#                  report['columnHeader']['metricHeader']['metricHeaderEntries']]
+#       ga_row = {
+#           'view_id': view_id,
+#           'start_date': start_date,
+#           'end_date': end_date,
+#       }
+#       try:
+#         for row in report['data']['rows']:
+#           for dimension, value in zip(dimensions, row['dimensions']):
+#             ga_row[dimension] = value
+#           for metric, value in zip(metrics, row['metrics'][0]['values']):
+#             ga_row[metric] = value
+#           bq_row = []
+#           for field in self._table.schema:
+#             try:
+#               bq_row.append(ga_row[field.name])
+#             except KeyError:
+#               bq_row.append(None)
+#           self._bq_rows.append(tuple(bq_row))
+#         self._flush()
+#         rows_fetched += len(report['data']['rows'])
+#         try:
+#           self._request['pageToken'] = report['nextPageToken']
+#         except KeyError:
+#           try:
+#             del self._request['pageToken']
+#           except KeyError:
+#             pass
+#           break
+#       except KeyError:
+#         break
+#     if rows_fetched:
+#       self.log_info('%i rows of data fetched for %s', rows_fetched, log_str)
+#     else:
+#       self.log_warn('No rows of data fetched for %s', log_str)
+#
+#   def _flush(self, forced=False):
+#     if self._bq_rows:
+#       if forced or len(self._bq_rows) > 9999:
+#         for i in range(0, len(self._bq_rows), 10000):
+#           self._table.insert_data(self._bq_rows[i:i + 10000])
+#         self._bq_rows = []
+#
+#   def _execute(self):
+#     self._bq_setup()
+#     self._table.reload()
+#     self._ga_setup()
+#     self._compose_report()
+#     self._bq_rows = []
+#     if self._params['day_by_day']:
+#       start_date = datetime.strptime(
+#           self._params['start_date'], '%Y-%m-%d').date()
+#       end_date = datetime.strptime(
+#           self._params['end_date'], '%Y-%m-%d').date()
+#       date_str = start_date.strftime('%Y-%m-%d')
+#       for view_id in self._params['view_ids']:
+#         self._get_report(view_id, date_str, date_str)
+#       self._flush(forced=True)
+#       if start_date != end_date:
+#         start_date += timedelta(1)
+#         params = self._params.copy()
+#         params['start_date'] = start_date.strftime('%Y-%m-%d')
+#         self._enqueue(self.__class__.__name__, params)
+#     else:
+#       for view_id in self._params['view_ids']:
+#         self._get_report(
+#             view_id, self._params['start_date'], self._params['end_date'])
+#       self._flush(forced=True)
 
 
-class MLWorker(Worker):
-  """Abstract ML Engine worker."""
+# class GADataImporter(GAWorker):
+#   """Imports CSV data from Cloud Storage to GA using Data Import."""
+#
+#   PARAMS = [
+#       ('csv_uri', 'string', True, '',
+#        'CSV data file URI (e.g. gs://bucket/data.csv)'),
+#       ('property_id', 'string', True, '',
+#        'GA Property Tracking ID (e.g. UA-12345-3)'),
+#       ('dataset_id', 'string', True, '',
+#        'GA Dataset ID (e.g. sLj2CuBTDFy6CedBJw)'),
+#       ('max_uploads', 'number', False, '',
+#        'Maximum uploads to keep in GA Dataset (leave empty to keep all)'),
+#       ('delete_before', 'boolean', True, False,
+#        'Delete older uploads before upload'),
+#       ('account_id', 'string', False, '', 'GA Account ID'),
+#   ]
+#
+#   _BUFFER_SIZE = 256 * 1024
+#
+#   def _upload(self):
+#     with gcs.open(self._file_name, read_buffer_size=self._BUFFER_SIZE) as f:
+#       media = MediaIoBaseUpload(f, mimetype='application/octet-stream',
+#                                 chunksize=self._BUFFER_SIZE, resumable=True)
+#       request = self._ga_client.management().uploads().uploadData(
+#           accountId=self._account_id,
+#           webPropertyId=self._params['property_id'],
+#           customDataSourceId=self._params['dataset_id'],
+#           media_body=media)
+#       response = None
+#       tries = 0
+#       milestone = 0
+#       while response is None and tries < 5:
+#         try:
+#           status, response = request.next_chunk()
+#         except HttpError as e:
+#           if e.resp.status in [404, 500, 502, 503, 504]:
+#             tries += 1
+#             delay = 5 * 2 ** (tries + random())
+#             self.log_warn('%s, Retrying in %.1f seconds...', e, delay)
+#             time.sleep(delay)
+#           else:
+#             raise WorkerException(e)
+#         else:
+#           tries = 0
+#         if status:
+#           progress = int(status.progress() * 100)
+#           if progress >= milestone:
+#             self.log_info('Uploaded %d%%.', int(status.progress() * 100))
+#             milestone += 20
+#       self.log_info('Upload Complete.')
+#
+#   def _delete_older(self, uploads_to_keep):
+#     request = self._ga_client.management().uploads().list(
+#         accountId=self._account_id, webPropertyId=self._params['property_id'],
+#         customDataSourceId=self._params['dataset_id'])
+#     response = self.retry(request.execute)()
+#     uploads = sorted(response.get('items', []), key=lambda u: u['uploadTime'])
+#     if uploads_to_keep:
+#       ids_to_delete = [u['id'] for u in uploads[:-uploads_to_keep]]
+#     else:
+#       ids_to_delete = [u['id'] for u in uploads]
+#     if ids_to_delete:
+#       request = self._ga_client.management().uploads().deleteUploadData(
+#           accountId=self._account_id,
+#           webPropertyId=self._params['property_id'],
+#           customDataSourceId=self._params['dataset_id'],
+#           body={
+#               'customDataImportUids': ids_to_delete})
+#       self.retry(request.execute)()
+#       self.log_info('%i older upload(s) deleted.', len(ids_to_delete))
+#
+#   def _execute(self):
+#     self._ga_setup('v3')
+#     if self._params['account_id']:
+#       self._account_id = self._params['account_id']
+#     else:
+#       self._account_id = self._parse_accountid_from_propertyid()
+#     self._file_name = self._params['csv_uri'].replace('gs:/', '')
+#     if self._params['max_uploads'] > 0 and self._params['delete_before']:
+#       self._delete_older(self._params['max_uploads'] - 1)
+#     self._upload()
+#     if self._params['max_uploads'] > 0 and not self._params['delete_before']:
+#       self._delete_older(self._params['max_uploads'])
 
-  def _get_ml_client(self):
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(_KEY_FILE)
-    self._ml_client = build('ml', 'v1', credentials=credentials)
 
-  def _get_ml_job_id(self):
-    self._ml_job_id = '%s_%i_%i_%s' % (self.__class__.__name__,
-                                       self._pipeline_id, self._job_id,
-                                       str(uuid.uuid4()).replace('-', '_'))
+# class GAAudiencesUpdater(BQWorker, GAWorker):
+#   """Worker to update GA audiences using values from a BQ table.
+#
+#   See: https://developers.google.com/analytics/devguides/config/mgmt/v3/mgmtReference/management/remarketingAudience#resource
+#   for more details on the required GA Audience JSON template format.
+#   """
+#
+#   PARAMS = [
+#       ('property_id', 'string', True, '',
+#        'GA Property Tracking ID (e.g. UA-12345-3)'),
+#       ('bq_project_id', 'string', False, '', 'BQ Project ID'),
+#       ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
+#       ('bq_table_id', 'string', True, '', 'BQ Table ID'),
+#       ('template', 'text', True, '', 'GA audience JSON template'),
+#       ('account_id', 'string', False, '', 'GA Account ID'),
+#   ]
+#
+#   def _infer_audiences(self):
+#     self._inferred_audiences = {}
+#     fields = [f.name for f in self._table.schema]
+#     for row in self._table.fetch_data():
+#       try:
+#         template_rendered = self._params['template'] % dict(list(zip(fields, row)))
+#         audience = json.loads(template_rendered)
+#       except ValueError as e:
+#         raise WorkerException(e)
+#       self._inferred_audiences[audience['name']] = audience
+#
+#   def _get_audiences(self):
+#     audiences = []
+#     start_index = 1
+#     max_results = 100
+#     total_results = 100
+#     while start_index <= total_results:
+#       request = self._ga_client.management().remarketingAudience().list(
+#           accountId=self._account_id,
+#           webPropertyId=self._params['property_id'],
+#           start_index=start_index,
+#           max_results=max_results)
+#       response = self.retry(request.execute)()
+#       total_results = response['totalResults']
+#       start_index += max_results
+#       audiences += response['items']
+#     self._current_audiences = {}
+#     names = list(self._inferred_audiences.keys())
+#     for audience in audiences:
+#       if audience['name'] in names:
+#         self._current_audiences[audience['name']] = audience
+#
+#   def _equal(self, patch, audience):
+#     """Checks whether applying a patch would not change an audience.
+#
+#     Args:
+#         patch: An object that is going to be used as a patch to update the
+#             audience.
+#         audience: An object representing audience to be patched.
+#
+#     Returns:
+#        True if applying the patch won't change the audience, False otherwise.
+#     """
+#     dicts = [(patch, audience)]
+#     for d1, d2 in dicts:
+#       keys = d1 if isinstance(d1, dict) else list(range(len(d1)))
+#       for k in keys:
+#         try:
+#           d2[k]
+#         except (IndexError, KeyError):
+#           return False
+#         if isinstance(d1[k], dict):
+#           if isinstance(d2[k], dict):
+#             dicts.append((d1[k], d2[k]))
+#           else:
+#             return False
+#         elif isinstance(d1[k], list):
+#           if isinstance(d2[k], list) and len(d1[k]) == len(d2[k]):
+#             dicts.append((d1[k], d2[k]))
+#           else:
+#             return False
+#         elif d1[k] != d2[k]:
+#           return False
+#     return True
+#
+#   def _get_diff(self):
+#     """Composes lists of audiences to be created and updated in GA."""
+#     self._audiences_to_insert = []
+#     self._audiences_to_patch = {}
+#     for name in self._inferred_audiences:
+#       inferred_audience = self._inferred_audiences[name]
+#       if name in self._current_audiences:
+#         current_audience = self._current_audiences[name]
+#         if not self._equal(inferred_audience, current_audience):
+#           self._audiences_to_patch[current_audience['id']] = inferred_audience
+#       else:
+#         self._audiences_to_insert.append(inferred_audience)
+#
+#   def _update_ga_audiences(self):
+#     """Updates and/or creates audiences in GA."""
+#     for audience in self._audiences_to_insert:
+#       request = self._ga_client.management().remarketingAudience().insert(
+#           accountId=self._account_id,
+#           webPropertyId=self._params['property_id'],
+#           body=audience)
+#       self.retry(request.execute)()
+#     for audience_id in self._audiences_to_patch:
+#       audience = self._audiences_to_patch[audience_id]
+#       request = self._ga_client.management().remarketingAudience().patch(
+#           accountId=self._account_id,
+#           webPropertyId=self._params['property_id'],
+#           remarketingAudienceId=audience_id,
+#           body=audience)
+#       self.retry(request.execute)()
+#
+#   def _execute(self):
+#     if self._params['account_id']:
+#       self._account_id = self._params['account_id']
+#     else:
+#       self._account_id = self._parse_accountid_from_propertyid()
+#     self._bq_setup()
+#     self._table.reload()
+#     self._ga_setup('v3')
+#     self._infer_audiences()
+#     self._get_audiences()
+#     self._get_diff()
+#     self._update_ga_audiences()
 
 
-class MLWaiter(MLWorker):
-  """Worker that checks ML job status and respawns itself if job is running."""
+# class MLWorker(Worker):
+#   """Abstract ML Engine worker."""
+#
+#   def _get_ml_client(self):
+#     credentials = ServiceAccountCredentials.from_json_keyfile_name(_KEY_FILE)
+#     self._ml_client = build('ml', 'v1', credentials=credentials)
+#
+#   def _get_ml_job_id(self):
+#     self._ml_job_id = '%s_%i_%i_%s' % (self.__class__.__name__,
+#                                        self._pipeline_id, self._job_id,
+#                                        str(uuid.uuid4()).replace('-', '_'))
 
-  FINAL_STATUSES = ('STATE_UNSPECIFIED', 'SUCCEEDED', 'FAILED', 'CANCELLED')
 
-  def _execute(self):
-    self._get_ml_client()
-    request = self._ml_client.projects().jobs().get(
-        name=self._params['job_name'])
-    job = self.retry(request.execute)()
-    if job.get('state') not in self.FINAL_STATUSES:
-      self._enqueue('MLWaiter', {'job_name': self._params['job_name']}, 60)
+# class MLWaiter(MLWorker):
+#   """Worker that checks ML job status and respawns itself if job is running."""
+#
+#   FINAL_STATUSES = ('STATE_UNSPECIFIED', 'SUCCEEDED', 'FAILED', 'CANCELLED')
+#
+#   def _execute(self):
+#     self._get_ml_client()
+#     request = self._ml_client.projects().jobs().get(
+#         name=self._params['job_name'])
+#     job = self.retry(request.execute)()
+#     if job.get('state') not in self.FINAL_STATUSES:
+#       self._enqueue('MLWaiter', {'job_name': self._params['job_name']}, 60)
+#
+# class MLOperationWaiter(MLWorker):
+#   """ Worker that checks an ML operation's status and respawns'
+#   'itslef until the operation is done."""
+#
+#   def _execute(self):
+#     self._get_ml_client()
+#     request = self._ml_client.projects().operations().get(
+#         name=self._params['operation_name'])
+#     operation = self.retry(request.execute)()
+#     if operation['done'] != True:
+#       self._enqueue('MLOperationWaiter',
+#                     {'operation_name': self._params['operation_name']}, 60)
+#
+# class MLPredictor(MLWorker):
+#   """Worker to create ML batch prediction jobs."""
+#
+#   PARAMS = [
+#       ('project', 'string', True, '', 'ML project ID'),
+#       ('model', 'string', True, '', 'ML model name'),
+#       ('version', 'string', True, '', 'ML model version'),
+#       ('input_uris', 'string_list', True, '',
+#        'URIs of input JSON files (e.g. gs://bucket/data.json)'),
+#       ('output_uri', 'string', True, '',
+#        'URI of folder to put predictions into (e.g. gs://bucket/folder)'),
+#   ]
+#
+#   def _execute(self):
+#     project_id = 'projects/%s' % self._params['project']
+#     version_name = '%s/models/%s/versions/%s' % (
+#         project_id, self._params['model'], self._params['version'])
+#     self._get_ml_job_id()
+#     body = {
+#         'jobId': self._ml_job_id,
+#         'predictionInput': {
+#             'dataFormat': 'JSON',
+#             'inputPaths': self._params['input_uris'],
+#             'outputPath': self._params['output_uri'],
+#             'region': 'europe-west1',
+#             'versionName': version_name,
+#         }
+#     }
+#     self._get_ml_client()
+#     request = self._ml_client.projects().jobs().create(parent=project_id,
+#                                                        body=body)
+#     self.retry(request.execute)()
+#     job_name = '%s/jobs/%s' % (project_id, self._ml_job_id)
+#     self._enqueue('MLWaiter', {'job_name': job_name}, 60)
+#
+# class MLTrainer(MLWorker):
+#   """Worker to train a ML model"""
+#
+#   PARAMS = [
+#       ('project', 'string', True, '', 'ML project ID'),
+#       ('jobDir', 'string', True, '',
+#        'URI of folder to put output generated by AI platform '
+#        '(e.g. gs://bucket/folder)'),
+#       ('packageUris', 'string', True, '',
+#        'URI of python package e.g. gs://bucket/folder/filename.tar.gz'),
+#       ('scaleTier', 'string', True, '',
+#        'Scale Tier e.g. BASIC, STANDARD_1'),
+#       ('runtimeVersion', 'string', True, '',
+#        'Runtime version e.g. 1.10'),
+#       ('pythonModule', 'string', True, '',
+#        'Name of python module e.g. trainer.task'),
+#       ('args', 'string_list', True, '',
+#        'Enter the arguments to be passed to the python package. '
+#        'Key in one line, value in the next.')
+#   ]
+#   def _execute(self):
+#
+#     self._get_ml_job_id()
+#     body = {
+#         'jobId': self._ml_job_id,
+#         'trainingInput': {
+#             'args': [a.strip() for a in self._params['args']],
+#             'packageUris': self._params['packageUris'],
+#             'region': 'europe-west1',
+#             'jobDir': self._params['jobDir'],
+#             'runtimeVersion': self._params['runtimeVersion'],
+#             'pythonModule': '%s' % (self._params['pythonModule'])
+#         }
+#     }
+#
+#     project_id = 'projects/%s' % self._params['project']
+#     self._get_ml_client()
+#     request = self._ml_client.projects().jobs().create(
+#         parent=project_id, body=body)
+#     self.retry(request.execute)()
+#     job_name = '%s/jobs/%s' % (project_id, self._ml_job_id)
+#     self._enqueue('MLWaiter', {'job_name': job_name}, 60)
 
-class MLOperationWaiter(MLWorker):
-  """ Worker that checks an ML operation's status and respawns'
-  'itslef until the operation is done."""
-
-  def _execute(self):
-    self._get_ml_client()
-    request = self._ml_client.projects().operations().get(
-        name=self._params['operation_name'])
-    operation = self.retry(request.execute)()
-    if operation['done'] != True:
-      self._enqueue('MLOperationWaiter',
-                    {'operation_name': self._params['operation_name']}, 60)
-
-class MLPredictor(MLWorker):
-  """Worker to create ML batch prediction jobs."""
-
-  PARAMS = [
-      ('project', 'string', True, '', 'ML project ID'),
-      ('model', 'string', True, '', 'ML model name'),
-      ('version', 'string', True, '', 'ML model version'),
-      ('input_uris', 'string_list', True, '',
-       'URIs of input JSON files (e.g. gs://bucket/data.json)'),
-      ('output_uri', 'string', True, '',
-       'URI of folder to put predictions into (e.g. gs://bucket/folder)'),
-  ]
-
-  def _execute(self):
-    project_id = 'projects/%s' % self._params['project']
-    version_name = '%s/models/%s/versions/%s' % (
-        project_id, self._params['model'], self._params['version'])
-    self._get_ml_job_id()
-    body = {
-        'jobId': self._ml_job_id,
-        'predictionInput': {
-            'dataFormat': 'JSON',
-            'inputPaths': self._params['input_uris'],
-            'outputPath': self._params['output_uri'],
-            'region': 'europe-west1',
-            'versionName': version_name,
-        }
-    }
-    self._get_ml_client()
-    request = self._ml_client.projects().jobs().create(parent=project_id,
-                                                       body=body)
-    self.retry(request.execute)()
-    job_name = '%s/jobs/%s' % (project_id, self._ml_job_id)
-    self._enqueue('MLWaiter', {'job_name': job_name}, 60)
-
-class MLTrainer(MLWorker):
-  """Worker to train a ML model"""
-
-  PARAMS = [
-      ('project', 'string', True, '', 'ML project ID'),
-      ('jobDir', 'string', True, '',
-       'URI of folder to put output generated by AI platform '
-       '(e.g. gs://bucket/folder)'),
-      ('packageUris', 'string', True, '',
-       'URI of python package e.g. gs://bucket/folder/filename.tar.gz'),
-      ('scaleTier', 'string', True, '',
-       'Scale Tier e.g. BASIC, STANDARD_1'),
-      ('runtimeVersion', 'string', True, '',
-       'Runtime version e.g. 1.10'),
-      ('pythonModule', 'string', True, '',
-       'Name of python module e.g. trainer.task'),
-      ('args', 'string_list', True, '',
-       'Enter the arguments to be passed to the python package. '
-       'Key in one line, value in the next.')
-  ]
-  def _execute(self):
-
-    self._get_ml_job_id()
-    body = {
-        'jobId': self._ml_job_id,
-        'trainingInput': {
-            'args': [a.strip() for a in self._params['args']],
-            'packageUris': self._params['packageUris'],
-            'region': 'europe-west1',
-            'jobDir': self._params['jobDir'],
-            'runtimeVersion': self._params['runtimeVersion'],
-            'pythonModule': '%s' % (self._params['pythonModule'])
-        }
-    }
-
-    project_id = 'projects/%s' % self._params['project']
-    self._get_ml_client()
-    request = self._ml_client.projects().jobs().create(
-        parent=project_id, body=body)
-    self.retry(request.execute)()
-    job_name = '%s/jobs/%s' % (project_id, self._ml_job_id)
-    self._enqueue('MLWaiter', {'job_name': job_name}, 60)
-
-class MLVersionDeployer(MLWorker, StorageWorker):
-  """Worker to deploy ML Model Version"""
-
-  PARAMS = [
-      ('project', 'string', True, '', 'ML project ID'),
-      ('jobDir', 'string', True, '',
-       'URI of GCS folder with a trained model'
-       '(e.g. gs://bucket/folder)'),
-      ('modelName', 'string', True, '',
-       'Name of the ML model in Google Cloud AI Platform'),
-      ('versionName', 'string', True, '',
-       'Name of the version (letters, numbers, underscores only; '
-       'must start with a letter)'),
-      ('runtimeVersion', 'string', True, '',
-       'Runtime version e.g. 1.10'),
-      ('pythonVersion', 'string', True, '', 'Version of python, e.g. 3.5'),
-      ('framework', 'string', True, '', 'Framework, eg. TENSORFLOW')
-  ]
-
-  def _execute(self):
-    self._get_ml_job_id()
-
-    # Find directory where newest saved model is located
-    bucket = self._params['jobDir']
-    stats = gcs.listbucket(bucket[4:])
-    newest_file = None
-
-    for stat in stats:
-      if stat.filename.find('saved_model.pb') != -1:
-        if newest_file is None:
-          newest_file = stat
-          if newest_file:
-            if stat.st_ctime > newest_file.st_ctime:
-              newest_file = stat
-
-    body = {
-       	"name": self._params['versionName'],
-       	"description": "Test from python",
-       	"deploymentUri": ("gs:/" + newest_file.
-                          filename[0:newest_file.filename.rfind('/')]),
-       	"pythonVersion": self._params['pythonVersion'],
-       	"runtimeVersion": self._params['runtimeVersion'],
-       	"framework": self._params['framework']
-    }
-
-    project_id = 'projects/%s' % self._params['project']
-    self._get_ml_client()
-    request = self._ml_client.projects().models().versions().create(
-        parent=project_id + "/models/" + self._params['modelName'], body=body)
-    response = self.retry(request.execute)()
-    self._enqueue('MLOperationWaiter', {'operation_name': response['name']}, 60)
+# class MLVersionDeployer(MLWorker, StorageWorker):
+#   """Worker to deploy ML Model Version"""
+#
+#   PARAMS = [
+#       ('project', 'string', True, '', 'ML project ID'),
+#       ('jobDir', 'string', True, '',
+#        'URI of GCS folder with a trained model'
+#        '(e.g. gs://bucket/folder)'),
+#       ('modelName', 'string', True, '',
+#        'Name of the ML model in Google Cloud AI Platform'),
+#       ('versionName', 'string', True, '',
+#        'Name of the version (letters, numbers, underscores only; '
+#        'must start with a letter)'),
+#       ('runtimeVersion', 'string', True, '',
+#        'Runtime version e.g. 1.10'),
+#       ('pythonVersion', 'string', True, '', 'Version of python, e.g. 3.5'),
+#       ('framework', 'string', True, '', 'Framework, eg. TENSORFLOW')
+#   ]
+#
+#   def _execute(self):
+#     self._get_ml_job_id()
+#
+#     # Find directory where newest saved model is located
+#     bucket = self._params['jobDir']
+#     stats = gcs.listbucket(bucket[4:])
+#     newest_file = None
+#
+#     for stat in stats:
+#       if stat.filename.find('saved_model.pb') != -1:
+#         if newest_file is None:
+#           newest_file = stat
+#           if newest_file:
+#             if stat.st_ctime > newest_file.st_ctime:
+#               newest_file = stat
+#
+#     body = {
+#        	"name": self._params['versionName'],
+#        	"description": "Test from python",
+#        	"deploymentUri": ("gs:/" + newest_file.
+#                           filename[0:newest_file.filename.rfind('/')]),
+#        	"pythonVersion": self._params['pythonVersion'],
+#        	"runtimeVersion": self._params['runtimeVersion'],
+#        	"framework": self._params['framework']
+#     }
+#
+#     project_id = 'projects/%s' % self._params['project']
+#     self._get_ml_client()
+#     request = self._ml_client.projects().models().versions().create(
+#         parent=project_id + "/models/" + self._params['modelName'], body=body)
+#     response = self.retry(request.execute)()
+#     self._enqueue('MLOperationWaiter', {'operation_name': response['name']}, 60)
 
 
 class MeasurementProtocolException(WorkerException):
