@@ -14,7 +14,6 @@
 
 """Module with CRMintApp worker classes."""
 
-
 # from datetime import datetime
 # from datetime import timedelta
 # from fnmatch import fnmatch
@@ -25,15 +24,18 @@ from random import random
 import time
 import urllib.request, urllib.parse, urllib.error
 import uuid
+import yaml
 
 # from apiclient.discovery import build
 from apiclient.errors import HttpError
 from apiclient.http import MediaIoBaseUpload
 # import cloudstorage as gcs
 # from oauth2client.service_account import ServiceAccountCredentials
-import requests
 from google.cloud import bigquery
 from google.cloud.exceptions import ClientError
+from googleads import adwords
+import requests
+import zeep.cache
 from functools import reduce
 
 
@@ -42,6 +44,7 @@ _KEY_FILE = os.path.join(os.path.dirname(__file__), '..', 'data',
 AVAILABLE = (
     'BQMLTrainer',
     'BQQueryLauncher',
+    'BQToCM',
     'BQToMeasurementProtocol',
     'BQToStorageExporter',
     'Commenter',
@@ -59,9 +62,7 @@ AVAILABLE = (
 # Defines how many times to retry on failure, default to 5 times.
 DEFAULT_MAX_RETRIES = os.environ.get('MAX_RETRIES', 5)
 
-
 # pylint: disable=too-few-public-methods
-
 
 class WorkerException(Exception):
   """Worker execution exceptions expected in task handler."""
@@ -76,6 +77,8 @@ class Worker(object):
   # parameter value is missing, and 4) label to show near parameter's field in
   # a web UI. See examples below in worker classes.
   PARAMS = []
+
+  GLOBAL_SETTINGS = []
 
   # Maximum number of execution attempts.
   MAX_ATTEMPTS = 3
@@ -939,8 +942,56 @@ class MeasurementProtocolException(WorkerException):
   pass
 
 
-class MeasurementProtocolWorker(Worker):
-  """Abstract Measurement Protocol worker."""
+class BQToMeasurementProtocol(BQWorker):
+  """Worker to push data through Measurement Protocol."""
+
+  PARAMS = [
+      ('bq_project_id', 'string', False, '', 'BQ Project ID'),
+      ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
+      ('bq_table_id', 'string', True, '', 'BQ Table ID'),
+      ('mp_batch_size', 'number', True, 20, ('Measurement Protocol batch size '
+                                             '(https://goo.gl/7VeWuB)')),
+      ('debug', 'boolean', True, False, 'Debug mode'),
+  ]
+
+  # BigQuery batch size for querying results. Default to 1000.
+  BQ_BATCH_SIZE = int(1e3)
+
+  # Maximum number of jobs to enqueued before spawning a new scheduler.
+  MAX_ENQUEUED_JOBS = 50
+
+  def _execute(self):
+    self._bq_setup()
+    self._table.reload()
+    page_token = self._params.get('bq_page_token', None)
+    batch_size = self.BQ_BATCH_SIZE
+    query_iterator = self.retry(self._table.fetch_data, max_retries=1)(
+        max_results=batch_size,
+        page_token=page_token)
+
+    enqueued_jobs_count = 0
+    for query_page in query_iterator.pages:  # pylint: disable=unused-variable
+      # Enqueue job for this page
+      worker_params = self._params.copy()
+      worker_params['bq_page_token'] = page_token
+      worker_params['bq_batch_size'] = self.BQ_BATCH_SIZE
+      self._enqueue('BQToMeasurementProtocolProcessor', worker_params, 0)
+      enqueued_jobs_count += 1
+
+      # Updates the page token reference for the next iteration.
+      page_token = query_iterator.next_page_token
+
+      # Spawns a new job to schedule the remaining pages.
+      if (enqueued_jobs_count >= self.MAX_ENQUEUED_JOBS
+          and page_token is not None):
+        worker_params = self._params.copy()
+        worker_params['bq_page_token'] = page_token
+        self._enqueue(self.__class__.__name__, worker_params, 0)
+        return
+
+
+class BQToMeasurementProtocolProcessor(BQWorker):
+  """Worker pushing to Measurement Protocol the first page only of a query."""
 
   def _flatten(self, data):
     flat = False
@@ -1023,58 +1074,6 @@ class MeasurementProtocolWorker(Worker):
             'Failed to send event hit with status code (%s) and parameters: %s'
             % (response.status_code, batch_payload))
 
-
-class BQToMeasurementProtocol(BQWorker):
-  """Worker to push data through Measurement Protocol."""
-
-  PARAMS = [
-      ('bq_project_id', 'string', False, '', 'BQ Project ID'),
-      ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
-      ('bq_table_id', 'string', True, '', 'BQ Table ID'),
-      ('mp_batch_size', 'number', True, 20, ('Measurement Protocol batch size '
-                                             '(https://goo.gl/7VeWuB)')),
-      ('debug', 'boolean', True, False, 'Debug mode'),
-  ]
-
-  # BigQuery batch size for querying results. Default to 1000.
-  BQ_BATCH_SIZE = int(1e3)
-
-  # Maximum number of jobs to enqueued before spawning a new scheduler.
-  MAX_ENQUEUED_JOBS = 50
-
-  def _execute(self):
-    self._bq_setup()
-    self._table.reload()
-    page_token = self._params.get('bq_page_token', None)
-    batch_size = self.BQ_BATCH_SIZE
-    query_iterator = self.retry(self._table.fetch_data, max_retries=1)(
-        max_results=batch_size,
-        page_token=page_token)
-
-    enqueued_jobs_count = 0
-    for query_page in query_iterator.pages:  # pylint: disable=unused-variable
-      # Enqueue job for this page
-      worker_params = self._params.copy()
-      worker_params['bq_page_token'] = page_token
-      worker_params['bq_batch_size'] = self.BQ_BATCH_SIZE
-      self._enqueue('BQToMeasurementProtocolProcessor', worker_params, 0)
-      enqueued_jobs_count += 1
-
-      # Updates the page token reference for the next iteration.
-      page_token = query_iterator.next_page_token
-
-      # Spawns a new job to schedule the remaining pages.
-      if (enqueued_jobs_count >= self.MAX_ENQUEUED_JOBS
-          and page_token is not None):
-        worker_params = self._params.copy()
-        worker_params['bq_page_token'] = page_token
-        self._enqueue(self.__class__.__name__, worker_params, 0)
-        return
-
-
-class BQToMeasurementProtocolProcessor(BQWorker, MeasurementProtocolWorker):
-  """Worker pushing to Measurement Protocol the first page only of a query."""
-
   def _send_payload_list(self, payload_list):
     batch_payload = self._prepare_payloads_for_batch_request(payload_list)
     try:
@@ -1126,3 +1125,148 @@ class BQMLTrainer(BQWorker):
     job = client.run_async_query(job_name, self._params['query'])
     job.use_legacy_sql = False
     self._begin_and_wait(job)
+
+
+class AWWorker(Worker):
+  """Abstract AdWords API worker."""
+  _MAX_ITEMS_PER_CALL = 10000
+
+  GLOBAL_SETTINGS = ['google_ads_refresh_token', 'client_id', 'client_secret',
+                     'developer_token']
+
+
+  def _aw_setup(self):
+    """Create AdWords API client."""
+    # Throw exception if one or more AdWords global params are missing.
+    for name in self.GLOBAL_SETTINGS:
+      if not name in self._params or not self._params[name]:
+        raise WorkerException(
+            "One or more AdWords API global parameters are missing.")
+    client_params_dict = {
+        'adwords': {
+            'client_customer_id': self._params['client_customer_id'].strip(),
+            'developer_token': self._params['developer_token'].strip(),
+            'client_id': self._params['client_id'].strip(),
+            'client_secret': self._params['client_secret'].strip(),
+            'refresh_token': self._params['google_ads_refresh_token'].strip(),
+        }
+    }
+    client_params_yaml = yaml.safe_dump(client_params_dict, encoding='utf-8',
+                                        allow_unicode=True)
+    self._aw_client = adwords.AdWordsClient.LoadFromString(client_params_yaml)
+    self._aw_client.cache = zeep.cache.InMemoryCache()
+
+
+class BQToCM(AWWorker, BQWorker):
+  """Customer Match worker."""
+
+  PARAMS = [
+      ('bq_project_id', 'string', False, '', 'BQ Project ID'),
+      ('bq_dataset_id', 'string', True, '', 'BQ Dataset ID'),
+      ('bq_table_id', 'string', True, '', 'BQ Table ID'),
+      ('client_customer_id', 'string', True, '', 'Google Ads Customer ID'),
+      ('list_name', 'string', True, '', 'Audience List Name'),
+      ('upload_key_type', 'string', True, 'CONTACT_INFO',
+       'Matching key type: CONTACT_INFO, CRM_ID, or MOBILE_ADVERTISING_ID'),
+      ('app_id', 'string', False, '', 'Mobile application ID'),
+      ('membership_life_span', 'number', True, 10000,
+       'Membership Life Span, days'),
+      ('remove_data', 'boolean', True, False,
+       'Remove data from existing Audience List'),
+  ]
+
+  # BigQuery batch size for querying results. Default to 10000.
+  BQ_BATCH_SIZE = int(10000)
+
+  def _get_user_list(self, user_list_service):
+    """Get or create the Customer Match list."""
+    # Check if the list already exists.
+    selector = {
+        'fields': ['Name', 'Id'],
+        'predicates': [{
+            'field': 'Name',
+            'operator': 'EQUALS',
+            'values': self._params['list_name'],
+        }],
+    }
+    result = user_list_service.get(selector)
+    if result['entries']:
+      user_list = result['entries'][0]
+      self.log_info('User list "%s" with ID = %d was found.',
+                    user_list['name'], user_list['id'])
+      return user_list['id']
+    # The list doesn't exist, have to create one.
+    user_list = {
+        'xsi_type': 'CrmBasedUserList',
+        'name': self._params['list_name'],
+        'description': 'This is a list of users created by CRMint',
+        'membershipLifeSpan': self._params['membership_life_span'],
+        'uploadKeyType': self._params['upload_key_type'],
+    }
+    if self._params['upload_key_type'] == 'MOBILE_ADVERTISING_ID':
+      user_list['appId'] = self._params['app_id']
+    # Create an operation to add the user list.
+    operations = [{'operator': 'ADD', 'operand': user_list}]
+    result = user_list_service.mutate(operations)
+    user_list = result['value'][0]
+    self.log_info('The user list "%s" with ID = %d has been created.',
+                  user_list['name'], user_list['id'])
+    return user_list['id']
+
+  def _process_page(self, page_data):
+    """Upload data fetched from BigQuery table to the Customer Match list."""
+
+    def remove_nones(obj):
+      """Remove all None and empty dict values from a dict recursively."""
+      if not isinstance(obj, dict):
+        return obj
+      clean_obj = {}
+      for k in obj:
+        v = remove_nones(obj[k])
+        if v is not None:
+          clean_obj[k] = v
+      return clean_obj if clean_obj else None
+
+    members = [remove_nones(row[0]) for row in page_data]
+    user_list_service = self._aw_client.GetService('AdwordsUserListService',
+                                                   'v201809')
+    user_list_id = self._get_user_list(user_list_service)
+    # Flow control to keep calls within usage limits.
+    self.log_info('Starting upload.')
+    for i in range(0, len(members), self._MAX_ITEMS_PER_CALL):
+      members_to_upload = members[i:i + self._MAX_ITEMS_PER_CALL]
+      mutate_members_operation = {
+          'operand': {
+              'userListId': user_list_id,
+              'membersList': members_to_upload,
+          },
+      }
+      if self._params["remove_data"]:
+        mutate_members_operation['operator'] = 'REMOVE'
+        operation_string = 'removed from'
+      else:
+        mutate_members_operation['operator'] = 'ADD'
+        operation_string = 'added to'
+      response = user_list_service.mutateMembers([mutate_members_operation])
+      if 'userLists' in response:
+        user_list = response['userLists'][0]
+        self.log_info(
+            '%d members were %s user list "%s" with ID = %d.',
+            len(members_to_upload), operation_string, user_list['name'],
+            user_list['id'])
+
+  def _execute(self):
+    self._aw_setup()
+    self._bq_setup()
+    self._table.reload()
+    page_token = self._params.get('bq_page_token', None)
+    page_iterator = self.retry(self._table.fetch_data, max_retries=1)(
+        max_results=self.BQ_BATCH_SIZE,
+        page_token=page_token)
+    page = next(page_iterator.pages)
+    self._process_page(page)
+    # Update the page token reference for the next iteration.
+    page_token = page_iterator.next_page_token
+    if page_token:
+      self._params['bq_page_token'] = page_token
+      self._enqueue(self.__class__.__name__, self._params, 0)

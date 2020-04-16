@@ -36,6 +36,8 @@ libraries:
     version: "latest"
   - name: grpcio
     version: 1.0.0
+  - name: lxml
+    version: "latest"
 
 skip_files:
   - \.pyc$
