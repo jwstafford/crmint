@@ -19,7 +19,7 @@ from core.models import Param, GeneralSetting
 from flask import Blueprint
 from flask_restful import Resource, fields, marshal_with, reqparse
 from ibackend.extensions import api
-import ads_auth_code
+from . import ads_auth_code
 
 from google.appengine.api import urlfetch
 

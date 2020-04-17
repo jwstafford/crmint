@@ -22,13 +22,11 @@ from google.appengine.ext import vendor
 
 # Add any libraries install in the 'lib' folder.
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
-path = os.path.join(PROJECT_DIR, 'lib')
-# vendor.add(os.path.join(PROJECT_DIR, 'lib'))
+vendor.add(os.path.join(PROJECT_DIR, 'lib'))
 
 if os.environ.get('SERVER_SOFTWARE', '').startswith('Development'):
-  # dir_rel_path = os.path.dirname(os.path.realpath(__file__))
-  # vendor.add(os.path.join(dir_rel_path, 'lib_dev'))
-  path = os.path.join(PROJECT_DIR, 'lib_dev')
+  dir_rel_path = os.path.dirname(os.path.realpath(__file__))
+  vendor.add(os.path.join(dir_rel_path, 'lib_dev'))
 
   import pkg_resources
   pkg_resources.require('requests==2.18.4')
@@ -40,7 +38,3 @@ if os.environ.get('SERVER_SOFTWARE', '').startswith('Development'):
   # URLFetch.
   requests_toolbelt_appengine.monkeypatch()
   print('Appengine requests patched')
-# Add libraries installed in the path folder
-vendor.add(path)
-# Add libraries to pkg_resources working set to find the distribution.
-pkg_resources.working_set.add_entry(path)

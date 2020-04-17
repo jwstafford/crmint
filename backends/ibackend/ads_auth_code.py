@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from oauthlib import oauth2
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 # The AdWords API OAuth 2.0 scope
-SCOPE = u'https://adwords.google.com/api/adwords'
+SCOPE = 'https://adwords.google.com/api/adwords'
 # This callback URL will allow you to copy the token from the success screen
 CALLBACK_URL = 'urn:ietf:wg:oauth:2.0:oob'
 # The web address for generating new OAuth 2.0 credentials (endpoints in
@@ -45,12 +45,12 @@ def get_token(client_id, client_secret, ads_code):
   post_body = oauthlib_client.prepare_request_body(
       client_secret=client_secret, code=ads_code, redirect_uri=CALLBACK_URL)
   # URL request
-  request = urllib2.Request(GOOGLE_OAUTH2_GEN_ENDPOINT,
-                            post_body, OAUTH2_REFRESH_HEADERS)
+  request = urllib.request.Request(GOOGLE_OAUTH2_GEN_ENDPOINT,
+                                   post_body, OAUTH2_REFRESH_HEADERS)
   if HTTPS_PROXY:
     request.set_proxy(HTTPS_PROXY, 'https')
   # Open the given url, read and decode into raw_response
-  raw_response = urllib2.urlopen(request).read().decode()
+  raw_response = urllib.request.urlopen(request).read().decode()
   # Parse the JSON response body given in raw_response
   oauth2_credentials = oauthlib_client.parse_request_body_response(
       raw_response)

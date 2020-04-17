@@ -7,8 +7,6 @@ Flask-SQLAlchemy==2.3.2
 mysqlclient
 sqlalchemy_mixins==0.2.2
 google-cloud-bigquery==0.27
-google-cloud-tasks
-googleapis_common_protos
 simpleeval==0.9.5
 Flask-RESTful==0.3.5
 google-api-python-client
